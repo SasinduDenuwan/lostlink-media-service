@@ -1,3 +1,37 @@
+#spring:
+#  application:
+#    name: media-service
+
+#--------------------------------------------------------
+#server:
+#  port: 8083
+
 spring:
   application:
-    name: service
+    name: media-service
+  config:
+    import: "optional:configserver:http://localhost:8888"
+
+#  servlet:
+#    multipart:
+#      max-file-size: 20MB
+#      max-request-size: 25MB
+#
+#eureka:
+#  client:
+#    service-url:
+#      defaultZone: http://localhost:8761/eureka/
+#
+#  instance:
+#    prefer-ip-address: true
+
+#findora:
+#  storage:
+#    project-id: your-gcp-project-id
+#    bucket-name: findora-media-bucket
+
+#management:
+#  endpoints:
+#    web:
+#      exposure:
+#        include: health,info
