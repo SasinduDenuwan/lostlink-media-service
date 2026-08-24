@@ -15,7 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +40,6 @@ public class MediaServiceImpl implements MediaService {
 
     @Override
     public MediaUploadResponse uploadFile(MultipartFile file) {
-
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File cannot be empty");
         }
@@ -55,6 +56,16 @@ public class MediaServiceImpl implements MediaService {
         } else {
             return uploadToLocal(file, originalFileName, objectName);
         }
+    }
+
+    @Override
+    public List<MediaUploadResponse> uploadMultipleFiles(List<MultipartFile> files) {
+        if (files == null || files.isEmpty()) {
+            throw new IllegalArgumentException("Files list cannot be empty");
+        }
+        return files.stream()
+                .map(this::uploadFile)
+                .collect(Collectors.toList());
     }
 
     private MediaUploadResponse uploadToLocal(MultipartFile file, String originalFileName, String objectName) {
@@ -137,114 +148,3 @@ public class MediaServiceImpl implements MediaService {
         }
     }
 }
-
-//package com.findora.services.media_service.service;
-//
-//import com.findora.services.media_service.dto.MediaUploadResponse;
-//import com.google.cloud.storage.BlobId;
-//import com.google.cloud.storage.BlobInfo;
-//import com.google.cloud.storage.Storage;
-//import lombok.RequiredArgsConstructor;
-//import org.springframework.beans.factory.annotation.Value;
-//import org.springframework.stereotype.Service;
-//import org.springframework.web.multipart.MultipartFile;
-//
-//import java.io.IOException;
-//import java.util.UUID;
-//
-//@Service
-//@RequiredArgsConstructor
-//public class MediaServiceImpl implements MediaService {
-//
-//    private final Storage storage;
-//
-//    @Value("${gcp.bucket.name}")
-//    private String bucketName;
-//
-//    @Override
-//    public MediaUploadResponse uploadFile(
-//            MultipartFile file
-//    ) {
-//
-//        if (file == null || file.isEmpty()) {
-//            throw new IllegalArgumentException(
-//                    "File cannot be empty"
-//            );
-//        }
-//
-//        try {
-//
-//            String originalFileName = file.getOriginalFilename();
-//
-//            if (originalFileName == null
-//                    || originalFileName.isBlank()) {
-//
-//                throw new IllegalArgumentException(
-//                        "Invalid file name"
-//                );
-//            }
-//
-//            String objectName =
-//                    "media/"
-//                            + UUID.randomUUID()
-//                            + "-"
-//                            + originalFileName;
-//
-//            BlobId blobId = BlobId.of(
-//                    bucketName,
-//                    objectName
-//            );
-//
-//            BlobInfo blobInfo = BlobInfo
-//                    .newBuilder(blobId)
-//                    .setContentType(file.getContentType())
-//                    .build();
-//
-//            storage.create(
-//                    blobInfo,
-//                    file.getBytes()
-//            );
-//
-//            String url =
-//                    "https://storage.googleapis.com/"
-//                            + bucketName
-//                            + "/"
-//                            + objectName;
-//
-//            return MediaUploadResponse.builder()
-//                    .fileName(originalFileName)
-//                    .objectName(objectName)
-//                    .contentType(file.getContentType())
-//                    .size(file.getSize())
-//                    .url(url)
-//                    .build();
-//
-//        } catch (IOException exception) {
-//
-//            throw new RuntimeException(
-//                    "Failed to upload file to Google Cloud Storage",
-//                    exception
-//            );
-//        }
-//    }
-//
-//    @Override
-//    public void deleteFile(String objectName) {
-//
-//        if (objectName == null || objectName.isBlank()) {
-//            throw new IllegalArgumentException(
-//                    "Object name cannot be empty"
-//            );
-//        }
-//
-//        boolean deleted = storage.delete(
-//                BlobId.of(bucketName, objectName)
-//        );
-//
-//        if (!deleted) {
-//            throw new IllegalArgumentException(
-//                    "File not found: " + objectName
-//            );
-//        }
-//    }
-//}

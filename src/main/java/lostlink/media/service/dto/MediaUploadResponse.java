@@ -1,4 +1,5 @@
 package lostlink.media.service.dto;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
