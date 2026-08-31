@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration;
 public class GcsConfig {
 
     @Bean
-    @ConditionalOnProperty(name = "findora.storage.type", havingValue = "gcs")
+    @ConditionalOnProperty(name = "lostlink.storage.type", havingValue = "gcs")
     public Storage storage() {
         return StorageOptions.getDefaultInstance().getService();
     }

@@ -10,7 +10,7 @@ import java.nio.file.Paths;
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
-    @Value("${findora.storage.local-dir:./uploads}")
+    @Value("${lostlink.storage.local-dir:./uploads}")
     private String localDir;
 
     @Override

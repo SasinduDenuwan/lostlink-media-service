@@ -5,16 +5,10 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Storage;
 import lombok.RequiredArgsConstructor;
 import lostlink.media.service.dto.MediaUploadResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -23,39 +17,21 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MediaServiceImpl implements MediaService {
 
-    @Autowired(required = false)
-    private Storage storage;
+    // Using final for standard Spring Boot constructor injection via Lombok
+    private final Storage storage;
 
-    @Value("${findora.storage.type:local}")
-    private String storageType;
-
-    @Value("${findora.storage.local-dir:./uploads}")
-    private String localDir;
-
-    @Value("${findora.storage.local-url-prefix:http://localhost:8083/uploads/}")
-    private String localUrlPrefix;
-
-    @Value("${findora.storage.bucket-name:findora-media-bucket}")
+    @Value("${lostlink.storage.bucket-name:lostlink-media-bucket-974ch}")
     private String bucketName;
 
     @Override
     public MediaUploadResponse uploadFile(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("File cannot be empty");
-        }
+        validateImageFile(file);
 
         String originalFileName = file.getOriginalFilename();
-        if (originalFileName == null || originalFileName.isBlank()) {
-            throw new IllegalArgumentException("Invalid file name");
-        }
+        String extension = getFileExtension(originalFileName);
+        String objectName = UUID.randomUUID() + extension;
 
-        String objectName = UUID.randomUUID() + "-" + originalFileName;
-
-        if ("gcs".equalsIgnoreCase(storageType)) {
-            return uploadToGcs(file, originalFileName, "media/" + objectName);
-        } else {
-            return uploadToLocal(file, originalFileName, objectName);
-        }
+        return uploadToGcs(file, originalFileName, objectName);
     }
 
     @Override
@@ -68,45 +44,36 @@ public class MediaServiceImpl implements MediaService {
                 .collect(Collectors.toList());
     }
 
-    private MediaUploadResponse uploadToLocal(MultipartFile file, String originalFileName, String objectName) {
-        try {
-            Path uploadPath = Paths.get(localDir);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
+    @Override
+    public void deleteFile(String objectName) {
+        if (objectName == null || objectName.isBlank()) {
+            throw new IllegalArgumentException("Object name cannot be empty");
+        }
 
-            Path targetPath = uploadPath.resolve(objectName);
-            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+        if (storage == null) {
+            throw new IllegalStateException("GCS Storage bean is not initialized");
+        }
 
-            String fileUrl = localUrlPrefix + objectName;
-
-            return MediaUploadResponse.builder()
-                    .fileName(originalFileName)
-                    .objectName(objectName)
-                    .contentType(file.getContentType())
-                    .size(file.getSize())
-                    .url(fileUrl)
-                    .build();
-
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to save file locally", e);
+        boolean deleted = storage.delete(BlobId.of(bucketName, objectName));
+        if (!deleted) {
+            throw new IllegalArgumentException("File not found in GCS: " + objectName);
         }
     }
 
     private MediaUploadResponse uploadToGcs(MultipartFile file, String originalFileName, String objectName) {
-        try {
-            if (storage == null) {
-                throw new IllegalStateException("GCS Storage bean is not initialized");
-            }
+        if (storage == null) {
+            throw new IllegalStateException("GCS Storage bean is not initialized");
+        }
 
+        try {
             BlobId blobId = BlobId.of(bucketName, objectName);
             BlobInfo blobInfo = BlobInfo.newBuilder(blobId)
                     .setContentType(file.getContentType())
                     .build();
 
-            storage.create(blobInfo, file.getBytes());
+            storage.createFrom(blobInfo, file.getInputStream());
 
-            String url = "https://storage.googleapis.com/" + bucketName + "/" + objectName;
+            String url = String.format("https://storage.googleapis.com/%s/%s", bucketName, objectName);
 
             return MediaUploadResponse.builder()
                     .fileName(originalFileName)
@@ -116,35 +83,31 @@ public class MediaServiceImpl implements MediaService {
                     .url(url)
                     .build();
 
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to upload file to Google Cloud Storage", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to upload file to Google Cloud Storage: " + e.getMessage(), e);
         }
     }
 
-    @Override
-    public void deleteFile(String objectName) {
-        if (objectName == null || objectName.isBlank()) {
-            throw new IllegalArgumentException("Object name cannot be empty");
+    private void validateImageFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File cannot be empty");
         }
 
-        if ("gcs".equalsIgnoreCase(storageType)) {
-            if (storage == null) {
-                throw new IllegalStateException("GCS Storage bean is not initialized");
-            }
-            boolean deleted = storage.delete(BlobId.of(bucketName, objectName));
-            if (!deleted) {
-                throw new IllegalArgumentException("File not found in GCS: " + objectName);
-            }
-        } else {
-            try {
-                Path filePath = Paths.get(localDir).resolve(objectName);
-                boolean deleted = Files.deleteIfExists(filePath);
-                if (!deleted) {
-                    throw new IllegalArgumentException("File not found locally: " + objectName);
-                }
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to delete local file", e);
-            }
+        String originalFileName = file.getOriginalFilename();
+        if (originalFileName == null || originalFileName.isBlank()) {
+            throw new IllegalArgumentException("Invalid file name");
         }
+
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new IllegalArgumentException("Only image files are allowed");
+        }
+    }
+
+    private String getFileExtension(String fileName) {
+        if (fileName != null && fileName.contains(".")) {
+            return fileName.substring(fileName.lastIndexOf("."));
+        }
+        return "";
     }
 }
