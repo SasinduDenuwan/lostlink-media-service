@@ -3,4 +3,4 @@ spring:
   application:
     name: media-service
   config:
-    import: "optional:configserver:http://10.160.0.3:8888"
+    import: "optional:configserver:http://10.160.0.2:8888"
